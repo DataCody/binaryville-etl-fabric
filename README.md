@@ -58,3 +58,37 @@ Design efficient Spark jobs within Microsoft Fabric’s Spark Engine for process
 ### 5. Analytics and Reporting:
 
 Connect Power BI to Microsoft Fabric to create real-time dashboards for different business units (sales, finance, inventory, marketing).
+
+
+## Data Lakehouse – High-Level Solution
+A data lakehouse blends the best features of a data lake and a data warehouse, offering:
+
+The scalability and flexibility of a data lake
+
+The structure, data management, and ACID transactions of a data warehouse
+
+Support for diverse data types and workloads
+
+In the context of Binaryville, this means we can handle large, varied datasets while maintaining the structure needed for real-time analytics and reporting. Using Microsoft Fabric, this architecture will allow Binaryville to ingest, process, and analyze massive amounts of data efficiently.
+
+Our solution will follow a three-layer architecture in Microsoft Fabric:
+
+### 1. Bronze Layer: Raw data ingestion
+
+Stores data in its delta table format from respective files (CSV, JSON, Parquet).
+Preserves the entire history of data changes for reprocessing.
+### 2. Silver Layer: Cleaned and conformed data
+
+Applies data quality rules like deduplication and standardization using Microsoft Fabric Notebooks.
+### 3, Gold Layer: Business-level aggregates
+
+Applies aggregations and business logic to prepare the data for reporting.
+Ensures high query performance using Microsoft Fabric Lakehouse features.
+This layered architecture helps us maintain data integrity at every stage while progressively refining the data for analytical needs.
+
+## Fabric End-to-End Project Architecture Diagram
+The architecture for the project is as follows:
+![Diagram](./images/diagram.png)
+A diagram showing customer data, product data, and orders data getting fed into an ADLS. This then outputs the data pipeline, into a bronze, silver, and gold layer which outputs the visualization.
+
+Microsoft Fabric provides the data pipeline, spark notebook, and visualization in one common platform, hence in the above architecture all the steps are coming within it.
