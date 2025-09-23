@@ -209,3 +209,59 @@ Click connect.
 ##### 3.3 On the top select the run tab and run the pipeline.
 
 - Pipeline executed successfully and load the data in bronzelayer lakehouse.
+
+## 3. Create a Pipeline to Load Product Data
+Similar to the customer data, let’s now create a pipeline to ingest Product data into the Bronze layer lakehouse in Microsoft Fabric. This pipeline will automate the process of loading raw Product data from various sources into the lakehouse. The data will be stored in its original format and organized for future transformations in the Silver and Gold layers.
+
+Before creating the pipeline, ensure the following:
+
+Product data: Raw Product data should be available in JSON format in ADLS account
+Bronze layer lakehouse: The Bronze layer lakehouse has been created in Microsoft Fabric (as discussed in the previous chapter)
+Microsoft Fabric pipelines: You should have access data factory in Microsoft Fabric to build and automate the pipeline
+#### 1. Log in to Microsoft Fabric
+
+Log into the Microsoft Fabric portal using your Azure credentials.
+#### 2. Navigate to Data factory experience
+
+Click on Data pipeline.
+#### 3. Create a New Pipeline
+
+3.1 Give it a name, such as “Ingest_Product_data.”
+![Connection](./images/Ingest_Product_data.png)
+3.2 Add the Copy Activity
+
+- In the pipeline editor, add the Copy Data Activity and configure the properties of it,
+
+- Click on Source-> Connection-> bineryville (ADLS connection created for previous customer pipeline).
+
+- Select the File path up to the JSON file.
+
+- Select the file format as JSON.
+
+
+![Connection](./images/connection2.png)
+- Select Destination tab.
+
+- Select Connection -> BronzeLayer.
+
+- Select the Table option and select New.
+
+- Give the name of the table as Product.
+
+ 
+
+3.3 On the top select the run tab and run the pipeline.
+
+- Pipeline executed successfully and load the data in bronzelayer lakehouse.
+
+## 5. Verify Customer Data in the Bronze Layer Lakehouse
+With our data ingested into the pipeline, we will now focus on verifying that customer data has been successfully ingested into the Bronze layer lakehouse.
+
+#### 1. Log in to Microsoft Fabric
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Bronze layer lakehouse.
+#### 2. Open the BronzeLayer lakehouse from the left navigation
+
+In the Lakehouse Explorer, open the tables.
+Click on the customer. On the right side, you will start seeing the table data.
+![Screenshot](./images/verify_bronze.png)
