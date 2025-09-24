@@ -265,3 +265,176 @@ Log into the Microsoft Fabric portal using your Azure credentials and navigate t
 In the Lakehouse Explorer, open the tables.
 Click on the customer. On the right side, you will start seeing the table data.
 ![Screenshot](./images/verify_bronze.png)
+## 6. Verify Product Data in the Bronze Layer Lakehouse
+Similar to the customer data, let’s verify that Product data has been successfully ingested into the Bronze layer lakehouse.
+
+#### 1. Log in to Microsoft Fabric.
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Bronze layer lakehouse.
+#### 2. Open the BronzeLayer lakehouse from the left navigation.
+
+In the Lakehouse Explorer, open the tables.
+Click on the Product. On the right side, you will see the table data.
+![Screenshot](./images/verify_product.png)
+
+## 7. Verify Orders Data in the Bronze Layer Lakehouse
+Similar to the product data, let’s verify that Orders data has been successfully ingested into the Bronze layer lakehouse.
+
+#### 1. Log in to Microsoft Fabric.
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Bronze layer lakehouse.
+#### 2. Open the BronzeLayer lakehouse from the left navigation.
+
+In the Lakehouse Explorer, open the tables.
+Click on the Orders. On the right side, you will see the table data.
+![Screenshot](./images/verify_orders.png)
+# 3. Fabric's Silver Layer Implementation
+## 1. Create Silver Layer Lakehouse
+Now that data has been ingested into the Bronze layer lakehouse, let’s focus on setting up the Silver layer lakehouse in Microsoft Fabric. The Silver layer is where clean and transformed data is stored.
+
+In this chapter, we will only cover the process of creating the Silver lakehouse. Loading data into the lakehouse will be covered in the following chapters.
+
+#### 1. Log in to Microsoft Fabric.
+
+Start by logging in to the Microsoft Fabric portal using your Azure credentials.
+#### 2. Navigate to the Data Lakehouse section.
+
+In the Fabric portal, navigate to Lakehouse under the Workspaces section.
+This is where you will create and manage the Silver layer for the data lakehouse.
+#### 3. Create the Silver Lakehouse.
+
+Click on Create Lakehouse and select the option to create a new lakehouse specifically for the Silver layer.
+Name the lakehouse SilverLayer to clearly identify its purpose as the processed data storage layer.
+
+![Screenshot](./images/silver_lakehouse.png)
+![Screenshot](./images/silverlayer.png)
+
+## 2. Create a Notebook to Load Customer Data into the Silver Layer
+Now, let’s focus on creating a notebook to load and transform customer data into the Silver layer of the data lakehouse. The Silver layer is where raw data from the Bronze layer is cleaned, standardized, and prepared for analytical processing. We'll also address specific data cleaning and transformation requirements, such as validating customer information, categorizing customer segments, and ensuring data quality by removing junk records.
+
+Before we proceed with the notebook creation, here are the specific data cleaning and transformation rules for the customer data in the Silver layer:
+
+***1. Validate email addresses:*** Ensure that the email column contains valid, non-null values.
+
+***2. Validate age:*** Filter customers with ages between 18 and 100 years.
+
+***3. Customer segmentation:*** Create a new column, customer_segment, where:
+
+- High Value if total purchases are greater than 10,000.
+- Medium Value if total purchases are greater than 5,000 but less than or equal to 10,000.
+- Low Value if total purchases are less than or equal to 5,000.
+  
+***4. Calculate days since registration:*** Create a column for the number of days since the customer registered in the system.
+
+***5. Remove invalid records:*** Filter out any records where the total_purchases is a negative number, as these represent junk data.
+
+***Step-by-Step Guide to Creating the Notebook for the Silver Layer***
+##### 1. Log in to Microsoft Fabric.
+
+Start by logging in to the Microsoft Fabric portal using your Azure credentials.
+
+##### 2. Navigate to the Lakehouse workspace.
+
+In the Lakehouse workspace, open the Silver layer where the cleaned and transformed data will be stored.
+
+##### 3. Create a new notebook.
+
+In the Lakehouse environment, create a new PySpark notebook for loading and transforming customer data from the Bronze layer.
+
+Name the notebook Silverlayer_Csutomer_load.
+
+##### 4. Create the Silver layer table for customer data
+
+This table will store the cleaned and transformed customer data in the Silver layer.
+
+spark.sql("""
+    CREATE TABLE IF NOT EXISTS silver_customers (
+    customer_id STRING,
+    name STRING,
+    email STRING,
+    country STRING,
+    customer_type STRING,
+    registration_date DATE,
+    age INT,
+    gender STRING,
+    total_purchases INT,
+    customer_segment STRING,
+    days_since_registration INT,
+    last_updated TIMESTAMP)
+""")
+Created the notebook for customer data load in silver layer.
+
+##### 5. Identify last processed timestamp.
+
+Get the timestamp of the last processed record to load only new or updated data.
+
+last_processed_df = spark.sql("SELECT MAX(last_updated) as last_processed FROM silver_customers")
+last_processed_timestamp = last_processed_df.collect()[0]['last_processed']
+
+if last_processed_timestamp is None:
+    last_processed_timestamp = "1900-01-01T00:00:00.000+00:00"
+##### 6. Load incremental data from the Bronze layer.
+
+Create a temporary view of newly ingested customer data from the Bronze layer by filtering data based on the last processed timestamp.
+
+Create a temporary view of incremental bronze data
+
+spark.sql(f"""
+CREATE OR REPLACE TEMPORARY VIEW bronze_incremental AS
+SELECT *
+FROM bronzelayer.customer c where  c.ingestion_timestamp > '{last_processed_timestamp}'
+""")
+
+##### 7. Transform the customer data.
+
+Apply the required transformations: email validation, validate age, calculate days since registration and remove invalid records.
+
+spark.sql("""
+CREATE OR REPLACE TEMPORARY VIEW silver_incremental AS
+SELECT
+    customer_id,
+    name,
+    email,
+    country,
+    customer_type,
+    registration_date,
+    age,
+    gender,
+    total_purchases,
+    CASE
+        WHEN total_purchases > 10000 THEN 'High Value'
+        WHEN total_purchases > 5000 THEN 'Medium Value'
+        ELSE 'Low Value'
+    END AS customer_segment,
+    DATEDIFF(CURRENT_DATE(), registration_date) AS days_since_registration,
+    CURRENT_TIMESTAMP() AS last_updated
+FROM bronze_incremental
+WHERE 
+    age BETWEEN 18 AND 100
+    AND email IS NOT NULL
+    AND total_purchases >= 0
+""")
+##### 8. Merge data into the Silver layer
+
+Use the MERGE command to upsert the transformed data into the Silver layer, ensuring that both new and updated records are handled correctly.
+
+spark.sql("""
+MERGE INTO silver_customers target
+USING silver_incremental source
+ON target.customer_id = source.customer_id
+WHEN MATCHED THEN
+    UPDATE SET *
+WHEN NOT MATCHED THEN
+    INSERT *
+""")
+##### 9. Verify the data in the Silver layer.
+
+Once the data is written, verify the contents of the Silver layer.
+
+Read and verify the Silver layer customer data
+spark.sql("select count(*) from silver_customers").show()
+Verify the customer data in silver layer.
+
+***Final Thoughts***
+Creating a notebook to load and transform customer data into the Silver layer is a critical step in preparing the data for analysis. By applying data cleaning and validation rules, we ensure that only high-quality, standardized data moves through the data lakehouse. This notebook also enables the categorization of customer segments and the removal of junk records, making the data more usable for business analytics.
+
