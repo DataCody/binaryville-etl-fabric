@@ -438,3 +438,452 @@ Verify the customer data in silver layer.
 ***Final Thoughts***
 Creating a notebook to load and transform customer data into the Silver layer is a critical step in preparing the data for analysis. By applying data cleaning and validation rules, we ensure that only high-quality, standardized data moves through the data lakehouse. This notebook also enables the categorization of customer segments and the removal of junk records, making the data more usable for business analytics.
 
+## 3. Create a Notebook to Load Product Data into the Silver Layer
+Now, we will create a notebook to load and transform product data from the Bronze layer into the Silver layer of the data lakehouse. The Silver layer ensures that raw data is cleansed and standardized for analytical purposes. The data transformations for product data include price normalization, stock quantity adjustments, rating clamping, price categorization, and stock status calculation.
+
+The following transformations will be applied to product data.
+
+***1. Price Normalization:*** Convert any negative prices to 0 to prevent invalid product prices.
+
+***2. Stock Quantity Normalization:*** Convert negative stock quantities to 0 to ensure no invalid stock levels.
+
+***3. Rating Normalization:*** Clamp the product rating between 0 and 5 to ensure valid ratings.
+
+***4. Price Categorization:*** Categorize products based on price into Premium, Standard, or Budget categories.
+
+***5. Stock Status Calculation:*** Determine the stock status based on quantity.
+
+Out of Stock if stock is 0
+Low Stock if stock is less than 10
+Moderate Stock if stock is between 10 and 50
+Sufficient Stock for quantities greater than 50
+##### 1. Log in to Microsoft Fabric.
+
+Start by logging in to the Microsoft Fabric portal using your Azure credentials.
+
+##### 2. Navigate to the Lakehouse workspace.
+
+Open the Silver layer of your lakehouse in the workspace to prepare for data transformation.
+
+##### 3. Create a new notebook.
+
+Create a new PySpark notebook in the Silver layer workspace, and name it Silverlayer_product_load.
+
+##### 4. Create the Silver layer table for product data
+
+This table will store the cleaned and transformed product data in the Silver layer.
+
+spark.sql("""
+CREATE TABLE IF NOT EXISTS silver_products (
+    product_id STRING,
+    name STRING,
+    category STRING,
+    brand STRING,
+    price DOUBLE,
+    stock_quantity INT,
+    rating DOUBLE,
+    is_active BOOLEAN,
+    price_category STRING,
+    stock_status STRING,
+    last_updated TIMESTAMP
+)
+USING DELTA
+""")
+Created the notebook for product data load in silver layer.
+
+##### 5. Identify last processed timestamp.
+
+Get the timestamp of the last processed record to load only new or updated data.
+
+last_processed_df = spark.sql("SELECT MAX(last_updated) as last_processed FROM silver_products")
+last_processed_timestamp = last_processed_df.collect()[0]['last_processed']
+
+if last_processed_timestamp is None:
+    last_processed_timestamp = "1900-01-01T00:00:00.000+00:00"
+##### 6. Load incremental data from the Bronze layer.
+
+Create a temporary view of newly ingested product data from the Bronze layer by filtering data based on the last processed timestamp.
+
+spark.sql(f"""
+CREATE OR REPLACE TEMPORARY VIEW bronze_incremental_products AS
+SELECT *
+FROM bronzelayer.product WHERE ingestion_timestamp > '{last_processed_timestamp}'
+""")
+##### 7. Transform the product data.
+
+Apply the required transformations: price normalization, stock quantity adjustments, rating normalization, price categorization, and stock status calculation.
+
+spark.sql("""
+CREATE OR REPLACE TEMPORARY VIEW silver_incremental_products AS
+SELECT
+    product_id,
+    name,
+    category,
+    brand,
+    CASE
+        WHEN price < 0 THEN 0
+        ELSE price
+    END AS price,
+    CASE
+        WHEN stock_quantity < 0 THEN 0
+        ELSE stock_quantity
+    END AS stock_quantity,
+    CASE
+        WHEN rating < 0 THEN 0
+        WHEN rating > 5 THEN 5
+        ELSE rating
+    END AS rating,
+    is_active,
+    CASE
+        WHEN price > 1000 THEN 'Premium'
+        WHEN price > 100 THEN 'Standard'
+        ELSE 'Budget'
+    END AS price_category,
+    CASE
+        WHEN stock_quantity = 0 THEN 'Out of Stock'
+        WHEN stock_quantity < 10 THEN 'Low Stock'
+        WHEN stock_quantity < 50 THEN 'Moderate Stock'
+        ELSE 'Sufficient Stock'
+    END AS stock_status,
+    CURRENT_TIMESTAMP() AS last_updated
+FROM bronze_incremental_products
+WHERE name IS NOT NULL AND category IS NOT NULL
+""")
+##### 8. Merge data into the Silver layer.
+
+Use the MERGE command to upsert the transformed data into the Silver layer, ensuring that both new and updated records are handled correctly.
+
+spark.sql("""
+MERGE INTO silver_products target
+USING silver_incremental_products source
+ON target.product_id = source.product_id
+WHEN MATCHED THEN
+    UPDATE SET *
+WHEN NOT MATCHED THEN
+    INSERT *
+""")
+##### 9. Verify the data in the Silver layer.
+
+After loading the transformed data into the Silver layer, you can verify the data by querying the silver_products table.
+
+spark.sql("SELECT * FROM silver_products LIMIT 10").show()
+Verify the product data in silver layer.
+
+Verify the product data in silver layer.
+
+Final Thoughts
+This notebook transforms product data from the Bronze layer into the Silver layer, ensuring the data is clean, standardized, and ready for analysis. By applying key transformations such as price and stock normalization, rating adjustments, and categorizing products based on price and stock levels, we prepare the data for the next stage of analysis in the Gold layer.
+
+## 4. Create a Notebook to Load Order Data into the Silver Layer
+Now that we have the customer and product notebooks finished, let’s create a notebook to load and transform order data from the Bronze layer into the Silver layer of the data lakehouse. The Silver layer is responsible for preparing raw data from the Bronze layer for further analysis. For order data, the transformations include normalizing quantity and total amounts, ensuring consistent date formats, deriving order status, and performing data quality checks to filter out invalid records.
+
+The following transformations will be applied to the order data before it is loaded into the Silver layer.
+
+***1. Quantity and Total Amount Normalization:*** Set any negative values for quantity or total_amount to 0.
+
+***2. Date Casting:*** Ensure the transaction_date is consistently formatted as a valid date.
+
+***3. Order Status Derivation:*** Derive the order_status based on the quantity and total_amount. For example:
+
+Cancelled if quantity = 0 and total_amount = 0
+Completed if quantity > 0 and total_amount > 0
+In Progress if other conditions are met.
+***4. Data Quality Checks:*** Filter out records with null values in critical fields, such as transaction_date, customer_id, or product_id.
+
+##### 1. Log in to Microsoft Fabric.
+
+Start by logging in to the Microsoft Fabric portal using your Azure credentials.
+
+##### 2. Navigate to the Lakehouse workspace.
+
+Open the Silver layer workspace where the cleaned and transformed order data will be stored.
+
+##### 3. Create a new notebook.
+
+Create a new PySpark notebook for transforming order data in the Silver layer and name it Silverlayer_orders_load.
+
+##### 4. Create the Silver layer table for orders data.
+
+Create a table in the Silver layer for storing the transformed order data.
+
+spark.sql("""
+CREATE TABLE IF NOT EXISTS silver_orders (
+    order_id STRING,
+    customer_id STRING,
+    product_id STRING,
+    quantity INT,
+    total_amount DOUBLE,
+    transaction_date DATE,
+    order_status STRING,
+    last_updated TIMESTAMP
+)
+USING DELTA
+""")
+Created the notebook for orders data load in silver layer.
+
+##### 5. Identify last processed timestamp.
+
+Get the timestamp of the last processed record to load only new or updated data.
+
+last_processed_df = spark.sql("SELECT MAX(last_updated) as last_processed FROM silver_orders")
+last_processed_timestamp = last_processed_df.collect()[0]['last_processed']
+
+if last_processed_timestamp is None:
+    last_processed_timestamp = "1900-01-01T00:00:00.000+00:00"
+##### 6. Load incremental data from the Bronze layer.
+
+Create a temporary view of the newly ingested order data from the Bronze layer by filtering records based on the last processed timestamp.
+
+spark.sql(f"""
+CREATE OR REPLACE TEMPORARY VIEW bronze_incremental_orders AS
+SELECT *
+FROM bronzelayer.orders WHERE ingestion_timestamp > '{last_processed_timestamp}'
+""")
+##### 7. Transform the order data.
+
+Apply the required transformations to clean and standardize the data.
+
+spark.sql("""
+CREATE OR REPLACE TEMPORARY VIEW silver_incremental_orders AS
+SELECT
+    transaction_id as order_id,
+    customer_id,
+    product_id,
+    CASE
+        WHEN quantity < 0 THEN 0
+        ELSE quantity
+    END AS quantity,
+    CASE
+        WHEN total_amount < 0 THEN 0
+        ELSE total_amount
+    END AS total_amount,
+    CAST(transaction_date AS DATE) AS transaction_date,
+    CASE
+        WHEN quantity = 0 AND total_amount = 0 THEN 'Cancelled'
+        WHEN quantity > 0 AND total_amount > 0 THEN 'Completed'
+        ELSE 'In Progress'
+    END AS order_status,
+    CURRENT_TIMESTAMP() AS last_updated
+FROM bronze_incremental_orders
+WHERE transaction_date IS NOT NULL 
+  AND customer_id IS NOT NULL 
+  AND product_id IS NOT NULL
+""")
+##### 8. Merge data into the Silver layer
+
+Use the MERGE statement to upsert the cleaned and transformed data into the Silver layer, ensuring both new and updated records are handled properly.
+
+spark.sql("""
+MERGE INTO silver_orders target
+USING silver_incremental_orders source
+ON target.order_id = source.order_id
+WHEN MATCHED THEN
+    UPDATE SET *
+WHEN NOT MATCHED THEN
+    INSERT *
+""")
+##### 9. Verify the data in the Silver layer.
+
+After loading the data into the Silver layer, you can verify the data by querying the silver_orders table.
+
+spark.sql("SELECT * FROM silver_orders LIMIT 10").show()
+Verifying orders table data
+
+Final Thoughts
+By creating a notebook to load and transform order data into the Silver layer, you ensure that raw order data is cleansed, standardized, and ready for analysis. This process includes normalizing quantity and total amounts, deriving order statuses, and ensuring data quality by filtering out incomplete records. The result is a structured dataset in the Silver layer that is ready for further analysis in the Gold layer.
+
+## 5. Verify Customer Data in the Silver Layer Lakehouse
+Let’s now focus on verifying that customer data has been successfully ingested into the Silver layer lakehouse.
+
+##### 1. Log in to Microsoft Fabric.
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Silver layer lakehouse.
+##### 2. Open the Silverlayer lakehouse from the left navigation.
+
+In the Lakehouse Explorer, open the tables.
+Click on the silver_customers. On the right side, you will see the table data.
+Verify customer data in silver layer
+
+Verify Product Data in the Silver Layer Lakehouse
+Similarly to the customer data, let’s verify that product data has been successfully ingested into the Silver layer lakehouse.
+
+###### 1. Log in to Microsoft Fabric.
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Silver layer lakehouse.
+###### 2. Open the Silverlayer lakehouse from the left navigation.
+
+In the Lakehouse Explorer, open the tables.
+Click on the silver_products. On the right side, you will see the table data.
+
+## 6. Verify Product Data in the Silver Layer Lakehouse
+Similarly to the customer data, let’s verify that product data has been successfully ingested into the Silver layer lakehouse.
+
+##### 1. Log in to Microsoft Fabric.
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Silver layer lakehouse.
+##### 2. Open the Silverlayer lakehouse from the left navigation.
+
+In the Lakehouse Explorer, open the tables.
+Click on the silver_products. On the right side, you will see the table data.
+
+## 7. Verify Orders Data in the Silver Layer Lakehouse
+Finally, let’s focus on verifying that orders data has been successfully ingested into the Silver layer lakehouse.
+
+##### 1. Log in to Microsoft Fabric.
+
+Log into the Microsoft Fabric portal using your Azure credentials and navigate to the Silver layer lakehouse.
+##### 2. Open the SilverLayer lakehouse from the left navigation.
+
+In the Lakehouse Explorer, open the tables.
+Click on the silver_orders. On the right side, you will see the table data.
+
+# 4. Fabric's Gold Layer Implementation
+
+## 1. Create Gold Layer Lakehouse
+In this chapter, we will focus on setting up the Gold layer lakehouse in Microsoft Fabric.
+
+##### 1. Log in to Microsoft Fabric.
+
+Start by logging in to the Microsoft Fabric portal using your Azure credentials.
+##### 2. Navigate to the data lakehouse section.
+
+In the Fabric portal, navigate to Lakehouse under the Workspaces section.
+This is where you will create and manage the Gold layer for the data lakehouse.
+##### 3. Create the Gold lakehouse.
+
+Click on Create Lakehouse and select the option to create a new lakehouse specifically for the Gold layer.
+Name the lakehouse GoldLayer to clearly identify its purpose as the raw data storage layer.
+
+## 2. Create a Notebook to Load Gold Table: Part 1
+Let’s create a notebook to load aggregated daily sales data into the Gold layer of the data lakehouse. The Gold layer is designed for business-ready data, where key metrics and summaries are derived from the cleansed data stored in the Silver layer. For this part, we will focus on aggregating sales data into a daily summary table, which will provide insights into the total sales per day for Binaryville.
+
+The goal is to load the Gold layer with a table that aggregates the total sales amount per day. This transformation will include:
+
+***1. Source Data:*** Pull the order data from the Silver layer (silver_orders table).
+***2. Aggregation:*** Calculate the total sales (SUM(total_amount)) for each transaction_date.
+***3. Output Table:*** Store the aggregated data in the Gold layer as a gold_daily_sales table.
+***4. Grouping:*** The data will be grouped by transaction_date to generate the daily total sales.
+##### 1. Log in to Microsoft Fabric.
+
+- Log in to the Microsoft Fabric portal using your Azure credentials.
+##### 2. Navigate to the Lakehouse workspace.
+
+- Open the Gold layer workspace where the business-ready data will be stored.
+##### 3. Create a new notebook.
+
+- Create a new PySpark notebook for creating the Gold layer table and name it Goldlayer_DailySales.
+##### 4. Create the Gold table for daily sales.
+
+Run the following SQL code to create the gold_daily_sales table in the Gold layer. This table will aggregate total sales by transaction_date from the Silver layer.
+spark.sql("""
+CREATE OR REPLACE TABLE gold_daily_sales AS
+SELECT 
+    transaction_date,
+    SUM(total_amount) AS daily_total_sales
+FROM 
+    SilverLayer.silver_orders
+GROUP BY 
+    transaction_date
+""")
+##### 5. Verify the Gold table.
+
+After creating the table, you can verify that the gold_daily_sales table was created successfully and that the data has been aggregated as expected.
+
+Verify the data in the Gold table
+spark.sql("SELECT * FROM gold_daily_sales LIMIT 10").show()
+Verify gold_daily_sales data in gold layer.
+
+***Final Thoughts***
+By creating the gold_daily_sales table in the Gold layer, we have successfully aggregated daily sales data from the Silver layer to provide business-ready metrics. This summary table is critical for business insights, enabling Binaryville to track daily sales performance across all transactions. In the next chapter, we will expand this process by adding metrics and tables to the Gold layer, preparing for more advanced analytics and reporting.
+
+## 3. Create a Notebook to Load Gold Table: Part 2
+Now that our aggregated sales data is loaded, we will continue building the Gold layer by creating a new table that aggregates sales data by product category. The Gold layer is designed for high-level, business-ready metrics that can be used for reporting and decision-making. For this part, we will focus on generating sales summaries based on product categories, which will help Binaryville understand how different product categories are performing in terms of total sales.
+
+The goal is to load the Gold layer with a table that aggregates category-wise sales totals. The transformation will include:
+
+***1. Source Data:*** Pulling data from the Silver layer tables silver_orders and silver_products.
+***2. Aggregation:*** Calculating the total sales (SUM(o.total_amount)) for each product category.
+***3. Output Table:*** Storing the aggregated data in the Gold layer as a gold_category_sales table.
+***4. Joining:*** Joining the orders and products tables from the Silver layer to associate each sale with its respective product category.
+##### 1. Log in to Microsoft Fabric.
+
+- Log into the Microsoft Fabric portal using your Azure credentials.
+##### 2. Navigate to the Lakehouse workspace.
+
+- Open the Gold layer workspace where the business-ready data will be stored.
+##### 3. Create a new notebook.
+
+- Create a new PySpark notebook for creating the category sales table in the Gold layer and name it Goldlayer_dailysalesby category.
+##### 4. Create the Gold table for category sales.
+
+- Run the following SQL code to create the gold_category_sales table in the Gold layer. This table will aggregate total sales by product category by joining the silver_orders and silver_products tables from the Silver layer.
+  
+spark.sql("""
+CREATE OR REPLACE TABLE gold_category_sales AS
+SELECT 
+    p.category AS product_category,
+    SUM(o.total_amount) AS category_total_sales
+FROM 
+    Silverlayer.silver_orders o
+JOIN 
+    Silverlayer.silver_products p ON o.product_id = p.product_id
+GROUP BY 
+    p.category
+""")
+##### 5. Verify the Gold table.
+
+- After creating the table, you can verify that the gold_category_sales table was created successfully and that the data has been aggregated by product category.
+
+Verify the data in the Gold table
+spark.sql("SELECT * FROM gold_category_sales LIMIT 10").show()
+Verify gold_category_sales data in gold layer.
+
+***Final Thoughts***
+By creating the gold_category_sales table in the Gold layer, we have successfully aggregated sales data by product category from the Silver layer. This allows Binaryville to track the performance of different product categories and make data-driven decisions about inventory management, marketing, and pricing strategies.
+
+# 5. Fabric's PowerBI Data Visualization
+
+## 1. Create a Semantic Model
+In this chapter, we will focus on creating a semantic model for the Gold layer of the data lakehouse.
+
+***Create semantic model*** that uses both the tables from the Gold layer.
+##### 1. Log in to Microsoft Fabric.
+
+- Log in to the Microsoft Fabric portal using your Azure credentials.
+##### 2. Define key business metrics.
+
+- Open the GoldLayer lakehouse.
+- On the top, click on the New semantic model tab.
+##### 3. Provide the details.
+
+- Fill details to create the semantic model.
+
+##### 4. Click confirm to create the model.
+
+##### 5. The model will be created, and it will look like this:
+
+
+## 2. Create a Power BI Dashboard Report
+Now that our semantic model is created, let’s create a Power BI dashboard report that visualizes the business metrics derived from the Gold layer of the data lakehouse. Power BI is an industry-leading business analytics tool that enables users to create insightful, interactive reports and dashboards by connecting to various data sources, including our semantic model built in the previous chapter. The goal is to present key metrics like daily sales, category sales, and total revenue in a visually compelling and interactive format for business decision-makers.
+
+To create the Power BI dashboard, we will:
+
+***1. Connect to the Gold layer:*** Pull data directly from the Gold layer or the semantic model we created in the last chapter.
+***2.Visualize business metrics:*** Use various Power BI visuals such as line charts, bar charts, and KPIs to represent metrics like daily sales, category sales, and total revenue.
+##### 1. Log in to Microsoft Fabric.
+
+- Log in to the Microsoft Fabric portal using your Azure credentials.
+##### 2. Open semantic model created in previous step.
+
+##### 3. Create report.
+
+- Click on the create new report to create Power BI report:
+Create new report
+
+##### 4. Create visualizations for key metrics.
+
+- Use the data from the Gold layer to build the visualizations. 
+
+Visualization for the Binaryville 
+
+By creating a Power BI dashboard, you have provided business users with a powerful tool to visualize and interact with key metrics such as daily sales, category sales, and total revenue. This dashboard allows stakeholders to make data-driven decisions by exploring trends and insights in a user-friendly interface. With Power BI’s interactive features and robust analytics capabilities, Binaryville’s decision-makers will have everything they need to drive performance and optimize business strategies.
