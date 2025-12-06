@@ -1,0 +1,90 @@
+{
+    "name": "Ingest_Orders_data",
+    "objectId": "ae6ee348-7167-4096-8c19-3f0d4e18fd22",
+    "properties": {
+        "activities": [
+            {
+                "name": "Copy data1",
+                "type": "Copy",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "ParquetSource",
+                        "storeSettings": {
+                            "type": "AzureBlobFSReadSettings",
+                            "recursive": true,
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "ParquetReadSettings"
+                        },
+                        "datasetSettings": {
+                            "annotations": [],
+                            "type": "Parquet",
+                            "typeProperties": {
+                                "location": {
+                                    "type": "AzureBlobFSLocation",
+                                    "fileName": "transactions.snappy.parquet",
+                                    "fileSystem": "landing"
+                                },
+                                "compressionCodec": "snappy"
+                            },
+                            "schema": [],
+                            "externalReferences": {
+                                "connection": "08aa318d-21b6-403e-b808-b6f51bcb89ac"
+                            }
+                        }
+                    },
+                    "sink": {
+                        "type": "LakehouseTableSink",
+                        "tableActionOption": "Append",
+                        "partitionOption": "None",
+                        "applyVOrder": true,
+                        "datasetSettings": {
+                            "annotations": [],
+                            "connectionSettings": {
+                                "name": "BronzeLayer",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "Lakehouse",
+                                    "typeProperties": {
+                                        "workspaceId": "53529bb0-797b-4b22-a098-f31f8d96d034",
+                                        "artifactId": "05fef890-c00d-4c83-ab5f-a6accc7894b3",
+                                        "rootFolder": "Tables"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "4e9a274d-60f1-4a16-8ae1-190556c22fbe"
+                                    }
+                                }
+                            },
+                            "type": "LakehouseTable",
+                            "schema": [],
+                            "typeProperties": {
+                                "schema": "",
+                                "table": "Order"
+                            }
+                        }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "typeConversion": true,
+                        "typeConversionSettings": {
+                            "allowDataTruncation": true,
+                            "treatBooleanAsNumber": false
+                        }
+                    }
+                }
+            }
+        ],
+        "lastModifiedByObjectId": "dda2152c-524e-4f91-af9e-698eb42e2c4d",
+        "lastPublishTime": "2025-10-23T04:17:24Z"
+    }
+}

@@ -1,0 +1,93 @@
+{
+    "name": "Ingest_Customer_data",
+    "objectId": "732e23b6-96d7-4b1c-87a0-b64417c60719",
+    "properties": {
+        "activities": [
+            {
+                "name": "Copy Raw Customer",
+                "type": "Copy",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "storeSettings": {
+                            "type": "AzureBlobFSReadSettings",
+                            "recursive": true,
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextReadSettings"
+                        },
+                        "datasetSettings": {
+                            "annotations": [],
+                            "type": "DelimitedText",
+                            "typeProperties": {
+                                "location": {
+                                    "type": "AzureBlobFSLocation",
+                                    "fileName": "customer.csv",
+                                    "fileSystem": "landing"
+                                },
+                                "columnDelimiter": ",",
+                                "escapeChar": "\\",
+                                "firstRowAsHeader": true,
+                                "quoteChar": "\""
+                            },
+                            "schema": [],
+                            "externalReferences": {
+                                "connection": "08aa318d-21b6-403e-b808-b6f51bcb89ac"
+                            }
+                        }
+                    },
+                    "sink": {
+                        "type": "LakehouseTableSink",
+                        "tableActionOption": "Append",
+                        "partitionOption": "None",
+                        "applyVOrder": true,
+                        "datasetSettings": {
+                            "annotations": [],
+                            "connectionSettings": {
+                                "name": "BronzeLayer",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "Lakehouse",
+                                    "typeProperties": {
+                                        "workspaceId": "53529bb0-797b-4b22-a098-f31f8d96d034",
+                                        "artifactId": "05fef890-c00d-4c83-ab5f-a6accc7894b3",
+                                        "rootFolder": "Tables"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "4e9a274d-60f1-4a16-8ae1-190556c22fbe"
+                                    }
+                                }
+                            },
+                            "type": "LakehouseTable",
+                            "schema": [],
+                            "typeProperties": {
+                                "schema": "",
+                                "table": "Customer"
+                            }
+                        }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "typeConversion": true,
+                        "typeConversionSettings": {
+                            "allowDataTruncation": true,
+                            "treatBooleanAsNumber": false
+                        }
+                    }
+                }
+            }
+        ],
+        "lastModifiedByObjectId": "dda2152c-524e-4f91-af9e-698eb42e2c4d",
+        "lastPublishTime": "2025-10-30T02:27:08Z"
+    }
+}

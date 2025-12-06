@@ -1,0 +1,94 @@
+{
+    "name": "Ingest_Product_data",
+    "objectId": "0a8af420-ae87-40f6-8910-d86b2ca20060",
+    "properties": {
+        "activities": [
+            {
+                "name": "Copy data1",
+                "type": "Copy",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "JsonSource",
+                        "storeSettings": {
+                            "type": "AzureBlobFSReadSettings",
+                            "recursive": true,
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "JsonReadSettings"
+                        },
+                        "datasetSettings": {
+                            "annotations": [],
+                            "type": "Json",
+                            "typeProperties": {
+                                "location": {
+                                    "type": "AzureBlobFSLocation",
+                                    "fileName": "product.json",
+                                    "fileSystem": "landing"
+                                }
+                            },
+                            "schema": {},
+                            "externalReferences": {
+                                "connection": "08aa318d-21b6-403e-b808-b6f51bcb89ac"
+                            }
+                        }
+                    },
+                    "sink": {
+                        "type": "LakehouseTableSink",
+                        "tableActionOption": "Append",
+                        "partitionOption": "None",
+                        "applyVOrder": true,
+                        "datasetSettings": {
+                            "annotations": [],
+                            "connectionSettings": {
+                                "name": "BronzeLayer",
+                                "properties": {
+                                    "annotations": [],
+                                    "type": "Lakehouse",
+                                    "typeProperties": {
+                                        "workspaceId": "53529bb0-797b-4b22-a098-f31f8d96d034",
+                                        "artifactId": "05fef890-c00d-4c83-ab5f-a6accc7894b3",
+                                        "rootFolder": "Tables"
+                                    },
+                                    "externalReferences": {
+                                        "connection": "4e9a274d-60f1-4a16-8ae1-190556c22fbe"
+                                    }
+                                }
+                            },
+                            "type": "LakehouseTable",
+                            "schema": [],
+                            "typeProperties": {
+                                "schema": "",
+                                "table": "Product"
+                            }
+                        }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "typeConversion": true,
+                        "typeConversionSettings": {
+                            "allowDataTruncation": true,
+                            "treatBooleanAsNumber": false
+                        },
+                        "columnFlattenSettings": {
+                            "treatArrayAsString": false,
+                            "treatStructAsString": false,
+                            "flattenColumnDelimiter": "."
+                        }
+                    }
+                }
+            }
+        ],
+        "lastModifiedByObjectId": "dda2152c-524e-4f91-af9e-698eb42e2c4d",
+        "lastPublishTime": "2025-10-23T04:20:40Z"
+    }
+}
