@@ -1,4 +1,4 @@
-# Real-World Project Case Study
+# Binaryville Global Data Lakehouse (Microsoft Fabric)
 ## Introduction to the Problem
 
 Our client, Binaryville, is a multinational retailer operating in 27 countries, with over 11,000 stores and a strong e-commerce presence. Because they generate enormous amounts of data daily, they face challenges in consolidating and analyzing it efficiently, which leads to missed business opportunities and operational inefficiencies.
